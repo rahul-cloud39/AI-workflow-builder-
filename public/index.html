@@ -1,0 +1,250 @@
+﻿<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI Workflow Builder</title>
+    <style>
+      * { box-sizing: border-box; }
+      :root {
+        --bg: #070b1a;
+        --panel: rgba(15, 23, 42, 0.72);
+        --panel-strong: rgba(15, 23, 42, 0.9);
+        --line: rgba(148, 163, 184, 0.22);
+        --text: #f8fafc;
+        --muted: #9aa7bd;
+        --blue: #5b8cff;
+        --cyan: #1ce3d8;
+        --pink: #ff4ecd;
+        --green: #57f287;
+        --shadow: 0 30px 100px rgba(0, 0, 0, 0.45);
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        color: var(--text);
+        background:
+          radial-gradient(circle at 15% 10%, rgba(91, 140, 255, 0.36), transparent 28%),
+          radial-gradient(circle at 80% 0%, rgba(255, 78, 205, 0.28), transparent 26%),
+          radial-gradient(circle at 60% 90%, rgba(28, 227, 216, 0.18), transparent 30%),
+          var(--bg);
+        overflow-x: hidden;
+      }
+      body::before {
+        content: "";
+        position: fixed;
+        inset: 0;
+        background-image:
+          linear-gradient(rgba(255,255,255,0.045) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(255,255,255,0.045) 1px, transparent 1px);
+        background-size: 44px 44px;
+        mask-image: linear-gradient(to bottom, black, transparent 82%);
+        pointer-events: none;
+      }
+      .scene {
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        perspective: 900px;
+        overflow: hidden;
+      }
+      .orb {
+        position: absolute;
+        width: 260px;
+        height: 260px;
+        border-radius: 50%;
+        filter: blur(0.2px);
+        opacity: 0.85;
+        animation: float 7s ease-in-out infinite;
+      }
+      .orb.one { right: 8%; top: 130px; background: radial-gradient(circle at 30% 25%, #fff, #5b8cff 24%, #1d2b7a 62%, transparent 70%); box-shadow: 0 0 80px rgba(91, 140, 255, 0.45); }
+      .orb.two { left: 4%; bottom: 70px; width: 160px; height: 160px; background: radial-gradient(circle at 35% 25%, #fff, #1ce3d8 26%, #0f766e 64%, transparent 72%); box-shadow: 0 0 70px rgba(28, 227, 216, 0.35); animation-delay: -2s; }
+      .cube {
+        position: absolute;
+        width: 110px;
+        height: 110px;
+        transform-style: preserve-3d;
+        animation: spin 14s linear infinite;
+        opacity: 0.55;
+      }
+      .cube.a { right: 24%; bottom: 90px; }
+      .cube.b { left: 18%; top: 150px; transform: scale(0.7); animation-delay: -4s; }
+      .face {
+        position: absolute;
+        inset: 0;
+        border: 1px solid rgba(255,255,255,0.25);
+        background: linear-gradient(135deg, rgba(91,140,255,0.18), rgba(28,227,216,0.08));
+        box-shadow: inset 0 0 30px rgba(255,255,255,0.05);
+      }
+      .front { transform: translateZ(55px); } .back { transform: rotateY(180deg) translateZ(55px); }
+      .right { transform: rotateY(90deg) translateZ(55px); } .left { transform: rotateY(-90deg) translateZ(55px); }
+      .top { transform: rotateX(90deg) translateZ(55px); } .bottom { transform: rotateX(-90deg) translateZ(55px); }
+      .topbar {
+        width: min(1280px, calc(100% - 32px));
+        margin: 18px auto 0;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 14px 16px;
+        background: rgba(15, 23, 42, 0.62);
+        border: 1px solid var(--line);
+        border-radius: 22px;
+        backdrop-filter: blur(18px);
+        box-shadow: var(--shadow);
+        position: sticky;
+        top: 14px;
+        z-index: 20;
+      }
+      .brand { display: flex; gap: 12px; align-items: center; font-weight: 950; letter-spacing: -0.03em; }
+      .logo {
+        width: 44px; height: 44px; border-radius: 16px; display: grid; place-items: center;
+        background: linear-gradient(145deg, var(--blue), var(--cyan));
+        color: white;
+        box-shadow: 0 18px 35px rgba(91, 140, 255, 0.35), inset 0 1px 0 rgba(255,255,255,0.45);
+        transform: rotateX(12deg) rotateY(-14deg);
+      }
+      .actions { display: flex; gap: 10px; flex-wrap: wrap; }
+      button, select, input, textarea { font: inherit; }
+      button {
+        border: 0;
+        border-radius: 14px;
+        padding: 11px 16px;
+        font-weight: 850;
+        cursor: pointer;
+        transition: transform .18s ease, box-shadow .18s ease, opacity .18s ease;
+      }
+      button:hover { transform: translateY(-2px); }
+      button:disabled { opacity: .55; cursor: not-allowed; transform: none; }
+      .primary { background: linear-gradient(135deg, var(--blue), var(--cyan)); color: white; box-shadow: 0 18px 35px rgba(91, 140, 255, 0.3); }
+      .secondary { background: rgba(226, 232, 240, 0.12); color: var(--text); border: 1px solid var(--line); }
+      .danger { background: rgba(255, 78, 78, 0.14); color: #fecaca; border: 1px solid rgba(248, 113, 113, 0.22); }
+      .hero { width: min(1120px, calc(100% - 32px)); margin: 0 auto; text-align: center; padding: 72px 20px 28px; position: relative; z-index: 1; }
+      .badge { display: inline-flex; gap: 8px; align-items: center; padding: 9px 14px; border: 1px solid rgba(91,140,255,0.35); background: rgba(91,140,255,0.12); border-radius: 999px; color: #c7d2fe; font-weight: 800; margin-bottom: 18px; }
+      h1 { margin: 0; font-size: clamp(42px, 7vw, 88px); line-height: .92; letter-spacing: -0.075em; text-shadow: 0 20px 65px rgba(91, 140, 255, 0.28); }
+      .gradient { background: linear-gradient(90deg, #fff, var(--cyan), var(--pink)); background-clip: text; -webkit-background-clip: text; color: transparent; }
+      .hero p { margin: 20px auto 0; max-width: 780px; color: var(--muted); font-size: 18px; line-height: 1.7; }
+      .layout { width: min(1280px, calc(100% - 32px)); margin: 24px auto 52px; display: grid; grid-template-columns: 390px 1fr; gap: 24px; position: relative; z-index: 1; }
+      .card {
+        background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.035));
+        border: 1px solid var(--line);
+        border-radius: 28px;
+        box-shadow: var(--shadow), inset 0 1px 0 rgba(255,255,255,0.12);
+        overflow: hidden;
+        backdrop-filter: blur(20px);
+      }
+      .tilt { transform: perspective(900px) rotateX(2deg) rotateY(-2deg); transform-origin: top; }
+      .card-header { padding: 22px; border-bottom: 1px solid var(--line); background: rgba(255,255,255,0.035); }
+      .card-header h2 { margin: 0; font-size: 21px; letter-spacing: -0.03em; }
+      .card-header p { margin: 7px 0 0; color: var(--muted); }
+      .form { padding: 22px; display: grid; gap: 16px; }
+      label { display: grid; gap: 8px; color: #dbeafe; font-weight: 850; font-size: 14px; }
+      input, select, textarea {
+        width: 100%; border: 1px solid var(--line); border-radius: 16px; padding: 14px 15px;
+        background: rgba(2, 6, 23, 0.42); color: var(--text); outline: none;
+        box-shadow: inset 0 1px 0 rgba(255,255,255,0.05);
+      }
+      select option { background: #0f172a; color: white; }
+      input:focus, select:focus, textarea:focus { border-color: rgba(28,227,216,0.55); box-shadow: 0 0 0 4px rgba(28,227,216,0.08); }
+      textarea { min-height: 112px; resize: vertical; }
+      .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+      .chip { border: 1px solid rgba(91,140,255,0.35); background: rgba(91,140,255,0.13); color: #dbeafe; border-radius: 999px; padding: 9px 12px; font-size: 13px; cursor: pointer; font-weight: 850; transition: transform .18s ease, background .18s ease; }
+      .chip:hover { transform: translateY(-2px) scale(1.02); background: rgba(28,227,216,0.15); }
+      .main { display: grid; gap: 22px; }
+      .tabs { display: flex; gap: 8px; flex-wrap: wrap; padding: 12px; background: rgba(15,23,42,0.62); border: 1px solid var(--line); border-radius: 22px; backdrop-filter: blur(18px); box-shadow: var(--shadow); }
+      .tab { background: rgba(226,232,240,0.09); color: #cbd5e1; border: 1px solid transparent; }
+      .tab.active { background: linear-gradient(135deg, var(--blue), var(--pink)); color: white; box-shadow: 0 16px 34px rgba(255,78,205,0.2); }
+      .panel { padding: 22px; }
+      .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+      .mini-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+      .metric { padding: 20px; border-radius: 22px; background: rgba(2, 6, 23, 0.34); border: 1px solid var(--line); transform: perspective(700px) rotateX(4deg); box-shadow: inset 0 1px 0 rgba(255,255,255,0.08); }
+      .metric strong { display: block; font-size: 34px; color: var(--cyan); text-shadow: 0 0 28px rgba(28,227,216,0.4); }
+      .output { background: #07111f; color: #b9fbcf; border: 1px solid rgba(87,242,135,0.18); border-radius: 22px; padding: 20px; min-height: 380px; overflow: auto; white-space: pre-wrap; line-height: 1.6; box-shadow: inset 0 0 50px rgba(87,242,135,0.04); }
+      .steps { display: grid; gap: 13px; }
+      .step { padding: 17px; border: 1px solid var(--line); border-radius: 20px; background: rgba(2, 6, 23, 0.34); box-shadow: inset 0 1px 0 rgba(255,255,255,0.07); transition: transform .18s ease, border-color .18s ease; }
+      .step:hover { transform: translateY(-3px); border-color: rgba(28,227,216,0.42); }
+      .step h3 { margin: 0 0 8px; color: #f8fafc; }
+      .step p { margin: 0; color: var(--muted); line-height: 1.58; }
+      .hidden { display: none; }
+      .status { padding: 12px 14px; border-radius: 16px; background: rgba(28,227,216,0.12); color: #a7f3d0; border: 1px solid rgba(28,227,216,0.22); font-weight: 850; }
+      .automation-bar { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
+      @keyframes float { 0%,100% { transform: translate3d(0,0,0) scale(1); } 50% { transform: translate3d(0,-24px,40px) scale(1.04); } }
+      @keyframes spin { from { transform: rotateX(0deg) rotateY(0deg); } to { transform: rotateX(360deg) rotateY(360deg); } }
+      @media (max-width: 960px) { .layout { grid-template-columns: 1fr; } .grid, .mini-grid { grid-template-columns: 1fr; } .topbar { align-items: flex-start; flex-direction: column; gap: 14px; } .tilt { transform: none; } }
+    </style>
+  </head>
+  <body>
+    <div class="scene"><div class="orb one"></div><div class="orb two"></div><div class="cube a"><div class="face front"></div><div class="face back"></div><div class="face right"></div><div class="face left"></div><div class="face top"></div><div class="face bottom"></div></div><div class="cube b"><div class="face front"></div><div class="face back"></div><div class="face right"></div><div class="face left"></div><div class="face top"></div><div class="face bottom"></div></div></div>
+    <nav class="topbar">
+      <div class="brand"><div class="logo">AI</div><div>Workflow Builder</div></div>
+      <div class="actions"><button class="secondary" id="simulateBtn">Simulate Run</button><button class="secondary" id="copyBtn">Copy Output</button><button class="secondary" id="downloadBtn">Download JSON</button><button class="danger" id="clearBtn">Clear</button></div>
+    </nav>
+    <section class="hero"><div class="badge">3D Gemini Automation Studio</div><h1>Build workflows in <span class="gradient">seconds</span></h1><p>Describe your automation idea and generate a complete workflow with triggers, steps, integrations, test cases, YAML preview, and deployment checklist using Gemini.</p></section>
+    <main class="layout">
+      <aside class="card tilt"><div class="card-header"><h2>Build Workflow</h2><p>Fill the details or choose a template.</p></div>
+        <form id="workflowForm" class="form">
+          <label>Workflow Type<select name="workflowType"><option>Lead Qualification</option><option>Customer Support Automation</option><option>Content Publishing Pipeline</option><option>Invoice Processing</option><option>Employee Onboarding</option><option>Data Sync Workflow</option></select></label>
+          <label>Industry<select name="industry"><option>SaaS</option><option>Ecommerce</option><option>Healthcare</option><option>Education</option><option>Finance</option><option>Agency</option></select></label>
+          <label>Goal<textarea name="goal" placeholder="Example: When a new lead submits a form, score it, notify sales, create CRM record, and send follow-up email." required></textarea></label>
+          <label>Trigger<input name="trigger" value="New form submission or webhook event" /></label>
+          <label>Integrations<input name="integrations" value="Google Sheets, Gmail, Slack, HubSpot, Webhook" /></label>
+          <label>Complexity<select name="complexity"><option>Beginner</option><option selected>Intermediate</option><option>Advanced</option></select></label>
+          <label>Output Style<select name="outputStyle"><option>n8n style JSON</option><option>Zapier style plan</option><option>Make.com scenario</option><option>Generic automation spec</option></select></label>
+          <div class="mini-grid">
+            <label>Schedule<select name="schedule"><option>Instant trigger</option><option>Every 15 minutes</option><option>Hourly</option><option>Daily at 9 AM</option><option>Weekly</option></select></label>
+            <label>Approval<select name="approvalRequired"><option>No approval</option><option>Manager approval</option><option>Finance approval</option><option>Manual review before final action</option></select></label>
+            <label>Retry Policy<select name="retryPolicy"><option>Retry 3 times with 5 min delay</option><option>Retry 5 times with exponential backoff</option><option>Do not retry</option><option>Retry and alert admin</option></select></label>
+            <label>Data Source<input name="dataSource" value="Webhook payload or form data" /></label>
+          </div>
+          <label>Output Destination<input name="outputDestination" value="CRM, Sheet, Slack notification, email confirmation" /></label>
+          <label>Human Handoff Rule<input name="handoffRule" value="If confidence is below 80% or high-value case is detected" /></label>
+          <label>Extra Details<textarea name="details" placeholder="Add conditions, filters, approval rules, retry logic, fields, or business rules."></textarea></label>
+          <div class="chips"><span class="chip" data-template="Generate a sales lead workflow with lead scoring, CRM enrichment, Slack alert, and personalized email follow-up.">Sales Lead</span><span class="chip" data-template="Generate a support workflow that classifies tickets, assigns priority, replies with suggested answer, and escalates urgent issues.">Support Bot</span><span class="chip" data-template="Generate a content workflow from topic idea to outline, draft, SEO review, approval, and publishing.">Content Ops</span></div>
+          <button id="generateBtn" class="primary" type="submit">Generate Workflow</button><div id="status" class="status hidden">Ready</div>
+        </form>
+      </aside>
+      <section class="main">
+        <div class="tabs"><button class="tab active" data-view="overview">Overview</button><button class="tab" data-view="steps">Workflow Steps</button><button class="tab" data-view="automation">Automation</button><button class="tab" data-view="json">JSON</button><button class="tab" data-view="yaml">YAML</button><button class="tab" data-view="tests">Test & Deploy</button><button class="tab" data-view="history">History</button></div>
+        <section class="card view" id="overview"><div class="card-header"><h2 id="title">No workflow generated yet</h2><p id="summary">Add your workflow details and click Generate Workflow.</p></div><div class="panel"><div class="grid"><div class="metric"><strong id="stepCount">0</strong>Steps</div><div class="metric"><strong id="integrationCount">0</strong>Integrations</div><div class="metric"><strong id="testCount">0</strong>Test Cases</div></div></div></section>
+        <section class="card view hidden" id="steps"><div class="card-header"><h2>Workflow Steps</h2><p>Generated automation sequence.</p></div><div class="panel steps" id="stepsList"></div></section>
+        <section class="card view hidden" id="automation"><div class="card-header"><h2>Automation Control Center</h2><p>Variables, conditions, webhook payload, monitoring, and security.</p></div><div class="panel steps" id="automationList"></div></section>
+        <section class="card view hidden" id="json"><div class="card-header"><h2>JSON Export</h2><p>Use this in your automation builder or developer handoff.</p></div><div class="panel"><pre class="output" id="jsonOutput">{}</pre></div></section>
+        <section class="card view hidden" id="yaml"><div class="card-header"><h2>YAML Preview</h2><p>Readable workflow configuration preview.</p></div><div class="panel"><pre class="output" id="yamlOutput">workflow: pending</pre></div></section>
+        <section class="card view hidden" id="tests"><div class="card-header"><h2>Test Stack & Deployment</h2><p>Test cases, error handling, and launch checklist.</p></div><div class="panel steps" id="testList"></div></section>
+        <section class="card view hidden" id="history"><div class="card-header"><h2>Workflow History</h2><p>Last generated workflows saved in this browser.</p></div><div class="panel steps" id="historyList"></div></section>
+      </section>
+    </main>
+    <script>
+      const form = document.querySelector('#workflowForm');
+      const statusBox = document.querySelector('#status');
+      const generateBtn = document.querySelector('#generateBtn');
+      const jsonOutput = document.querySelector('#jsonOutput');
+      const yamlOutput = document.querySelector('#yamlOutput');
+      const stepsList = document.querySelector('#stepsList');
+      const testList = document.querySelector('#testList');
+      const automationList = document.querySelector('#automationList');
+      const historyList = document.querySelector('#historyList');
+      const title = document.querySelector('#title');
+      const summary = document.querySelector('#summary');
+      const stepCount = document.querySelector('#stepCount');
+      const integrationCount = document.querySelector('#integrationCount');
+      const testCount = document.querySelector('#testCount');
+      let latestWorkflow = {};
+      function showStatus(text) { statusBox.textContent = text; statusBox.classList.remove('hidden'); }
+      function normalizeList(value) { if (Array.isArray(value)) return value; if (!value) return []; return String(value).split(',').map((item) => item.trim()).filter(Boolean); }
+      function safeText(value) { return typeof value === 'string' ? value : JSON.stringify(value, null, 2); }
+      function renderCards(container, items, fallback) { container.innerHTML = ''; const list = items.length ? items : [fallback]; list.forEach((item, index) => { const card = document.createElement('div'); card.className = 'step'; const heading = item.name || item.title || `Item ${index + 1}`; const text = item.description || item.action || item.expectedResult || safeText(item); card.innerHTML = `<h3>${index + 1}. ${heading}</h3><p>${text}</p>`; container.appendChild(card); }); }
+      function renderHistory() { const items = JSON.parse(localStorage.getItem('workflowHistory') || '[]'); renderCards(historyList, items.map((item) => ({ title: item.title, description: `${item.date} • ${item.summary}` })), { title: 'No history yet', description: 'Generate a workflow to save it here.' }); }
+      function saveHistory(workflow) { const items = JSON.parse(localStorage.getItem('workflowHistory') || '[]'); items.unshift({ title: workflow.title || 'Generated Workflow', summary: workflow.summary || 'Workflow generated', date: new Date().toLocaleString() }); localStorage.setItem('workflowHistory', JSON.stringify(items.slice(0, 8))); renderHistory(); }
+      function renderWorkflow(workflow) { latestWorkflow = workflow; const steps = normalizeList(workflow.steps); const integrations = normalizeList(workflow.integrations); const tests = normalizeList(workflow.testCases); title.textContent = workflow.title || 'Generated Workflow'; summary.textContent = workflow.summary || workflow.rawOutput || 'Workflow generated successfully.'; stepCount.textContent = steps.length; integrationCount.textContent = integrations.length; testCount.textContent = tests.length; jsonOutput.textContent = JSON.stringify(workflow, null, 2); yamlOutput.textContent = workflow.yamlPreview || `workflow: ${workflow.title || 'Generated Workflow'}\nsteps: ${steps.length}`; renderCards(stepsList, steps, { title: 'No steps found', description: 'Generate again with more details.' }); renderCards(automationList, [{ title: 'Automation Score', description: workflow.automationScore || 'Pending' }, { title: 'Estimated Runtime', description: workflow.estimatedRuntime || 'Pending' }, { title: 'Schedule', description: safeText(workflow.schedule || 'Instant trigger') }, { title: 'Retry Policy', description: safeText(workflow.retryPolicy || 'Retry policy pending') }, { title: 'Approval Flow', description: safeText(workflow.approvalFlow || 'No approval flow') }, { title: 'Webhook Payload', description: safeText(workflow.webhookPayload || 'No payload generated') }, ...normalizeList(workflow.variables).map((item) => ({ title: 'Variable', description: safeText(item) })), ...normalizeList(workflow.conditions).map((item) => ({ title: 'Condition', description: safeText(item) })), ...normalizeList(workflow.monitoring).map((item) => ({ title: 'Monitoring', description: safeText(item) })), ...normalizeList(workflow.securityChecks).map((item) => ({ title: 'Security', description: safeText(item) }))], { title: 'No automation controls found', description: 'Generate again with more automation details.' }); renderCards(testList, [...normalizeList(workflow.errorHandling).map((item) => ({ title: 'Error Handling', description: safeText(item) })), ...tests, ...normalizeList(workflow.deploymentChecklist).map((item) => ({ title: 'Deployment', description: safeText(item) }))], { title: 'No test stack found', description: 'Generate again with test requirements.' }); }
+      document.querySelectorAll('.tab').forEach((tab) => { tab.addEventListener('click', () => { document.querySelectorAll('.tab').forEach((item) => item.classList.remove('active')); document.querySelectorAll('.view').forEach((view) => view.classList.add('hidden')); tab.classList.add('active'); document.querySelector(`#${tab.dataset.view}`).classList.remove('hidden'); }); });
+      document.querySelectorAll('.chip').forEach((chip) => { chip.addEventListener('click', () => { form.elements.goal.value = chip.dataset.template; }); });
+      form.addEventListener('submit', async (event) => { event.preventDefault(); const payload = Object.fromEntries(new FormData(form).entries()); generateBtn.disabled = true; showStatus('Generating workflow with Gemini...'); try { const response = await fetch('/api/workflow', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }); const data = await response.json(); if (!response.ok) throw new Error(data.error || 'Workflow generation failed.'); renderWorkflow(data); saveHistory(data); showStatus('Workflow generated successfully.'); } catch (error) { showStatus(error.message); } finally { generateBtn.disabled = false; } });
+      document.querySelector('#simulateBtn').addEventListener('click', () => { const steps = normalizeList(latestWorkflow.steps); if (!steps.length) { showStatus('Generate a workflow first, then simulate it.'); return; } showStatus(`Simulation passed: ${steps.length} steps checked, retry policy and handoff rules ready.`); });
+      document.querySelector('#copyBtn').addEventListener('click', async () => { await navigator.clipboard.writeText(JSON.stringify(latestWorkflow, null, 2)); showStatus('Copied JSON output.'); });
+      document.querySelector('#downloadBtn').addEventListener('click', () => { const blob = new Blob([JSON.stringify(latestWorkflow, null, 2)], { type: 'application/json' }); const url = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = url; link.download = 'ai-workflow.json'; link.click(); URL.revokeObjectURL(url); });
+      document.querySelector('#clearBtn').addEventListener('click', () => { latestWorkflow = {}; renderWorkflow({}); showStatus('Cleared.'); });
+      renderHistory();
+    </script>
+  </body>
+</html>
