@@ -100,6 +100,33 @@ app.post('/api/workflow', async (req, res) => {
   }
 });
 
+app.post('/api/run-workflow', (req, res) => {
+  const { workflow } = req.body;
+  const steps = Array.isArray(workflow?.steps)
+    ? workflow.steps
+    : String(workflow?.steps || '')
+      .split(',')
+      .map((step) => step.trim())
+      .filter(Boolean);
+
+  if (!workflow || !steps.length) {
+    return res.status(400).json({ error: 'Generate a workflow before running it.' });
+  }
+
+  res.json({
+    status: 'completed',
+    mode: 'safe-dry-run',
+    startedAt: new Date().toISOString(),
+    completedSteps: steps.map((step, index) => ({
+      step: index + 1,
+      name: step.name || step.title || String(step) || `Step ${index + 1}`,
+      status: 'success',
+      output: step.description || step.action || 'Step validated successfully.'
+    })),
+    message: 'Workflow dry-run completed. No external LinkedIn, CRM, email, or Slack actions were executed.'
+  });
+});
+
 if (!process.env.VERCEL) {
   app.listen(port, () => {
     console.log(`AI Workflow Builder running at http://localhost:${port}`);
