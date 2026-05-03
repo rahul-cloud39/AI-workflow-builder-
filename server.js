@@ -46,6 +46,93 @@ Include realistic conditions, variables, webhook JSON payload, monitoring alerts
 `;
 }
 
+function buildFallbackWorkflow(payload, reason = 'Gemini API is temporarily unavailable.') {
+  const isLinkedIn = String(payload.workflowType || '').toLowerCase().includes('linkedin');
+  const title = isLinkedIn ? 'LinkedIn Lead Generation Workflow' : `${payload.workflowType || 'Automation'} Workflow`;
+
+  return {
+    title,
+    summary: `${title} generated in fallback mode because ${reason}`,
+    trigger: payload.trigger || 'Manual run',
+    inputs: [
+      'target_audience',
+      'industry',
+      'company_size',
+      'job_titles',
+      'location',
+      'lead_source'
+    ],
+    variables: [
+      { name: 'leadScoreThreshold', value: 80 },
+      { name: 'manualReviewRequired', value: payload.approvalRequired || 'Manual review before final action' },
+      { name: 'handoffRule', value: payload.handoffRule || 'If confidence is below 80%' }
+    ],
+    steps: isLinkedIn ? [
+      { name: 'Define ICP filters', description: 'Collect target industry, job titles, geography, company size, and intent signals.' },
+      { name: 'Find LinkedIn prospects', description: 'Prepare a LinkedIn Sales Navigator search plan for matching prospects.' },
+      { name: 'Enrich lead profile', description: 'Normalize profile URL, company, role, seniority, and available contact fields.' },
+      { name: 'Score lead', description: 'Score each prospect using fit, seniority, company size, and relevance signals.' },
+      { name: 'Create CRM record', description: 'Send qualified leads to CRM or Google Sheets with status set to review.' },
+      { name: 'Draft outreach', description: 'Generate a personalized connection note or email draft for manual approval.' },
+      { name: 'Notify sales team', description: 'Send a Slack notification with lead summary and next recommended action.' }
+    ] : [
+      { name: 'Receive trigger data', description: 'Validate incoming workflow payload and required fields.' },
+      { name: 'Apply conditions', description: 'Check business rules, confidence score, and routing logic.' },
+      { name: 'Execute automation steps', description: 'Run the selected integrations in the correct order.' },
+      { name: 'Handle failures', description: 'Retry failed steps according to policy and alert owners.' },
+      { name: 'Save output', description: 'Store final workflow output in the selected destination.' }
+    ],
+    integrations: String(payload.integrations || 'Google Sheets, Gmail, Slack, HubSpot').split(',').map((item) => item.trim()),
+    conditions: [
+      'Only continue if required lead fields are present.',
+      'Send to manual review if confidence score is below threshold.',
+      'Skip outreach if prospect is already in CRM.'
+    ],
+    approvalFlow: payload.approvalRequired || 'Manual review before final action',
+    retryPolicy: payload.retryPolicy || 'Retry 3 times with 5 min delay',
+    schedule: payload.schedule || 'Instant trigger',
+    webhookPayload: {
+      workflowType: payload.workflowType,
+      industry: payload.industry,
+      lead: {
+        name: 'Sample Lead',
+        title: 'Head of Growth',
+        company: 'Example SaaS',
+        linkedinUrl: 'https://linkedin.com/in/sample'
+      }
+    },
+    securityChecks: [
+      'Do not expose API keys in frontend code.',
+      'Use manual approval before LinkedIn outreach.',
+      'Respect LinkedIn platform rules and anti-spam limits.'
+    ],
+    monitoring: [
+      'Track generated leads per run.',
+      'Track approval rate and failed integration calls.',
+      'Alert owner if retry attempts are exhausted.'
+    ],
+    errorHandling: [
+      'Retry temporary API failures.',
+      'Log failed records with reason.',
+      'Continue processing remaining leads when one lead fails.'
+    ],
+    testCases: [
+      { title: 'Valid lead input', expectedResult: 'Lead is scored and added to CRM review queue.' },
+      { title: 'Missing LinkedIn URL', expectedResult: 'Lead is routed to manual enrichment.' },
+      { title: 'Low score lead', expectedResult: 'Lead is stored but outreach is not drafted.' }
+    ],
+    deploymentChecklist: [
+      'Add production API keys in hosting dashboard.',
+      'Test with sample payload.',
+      'Confirm CRM and notification destinations.',
+      'Enable monitoring alerts.'
+    ],
+    estimatedRuntime: '30-90 seconds per batch',
+    automationScore: '82/100',
+    yamlPreview: `workflow: ${title}\ntrigger: ${payload.trigger || 'Manual run'}\nmode: fallback\nsteps:\n  - define_icp\n  - find_prospects\n  - score_leads\n  - create_crm_record\n  - draft_outreach\n  - notify_team`
+  };
+}
+
 app.post('/api/chat', async (req, res) => {
   try {
     const { message } = req.body;
@@ -96,7 +183,12 @@ app.post('/api/workflow', async (req, res) => {
       });
     }
   } catch (error) {
-    res.status(500).json({ error: error.message || 'Failed to generate workflow.' });
+    const message = error.message || 'Failed to generate workflow.';
+    if (message.includes('429') || message.toLowerCase().includes('quota') || message.toLowerCase().includes('too many requests')) {
+      return res.json(buildFallbackWorkflow(req.body, 'Gemini quota was exceeded.'));
+    }
+
+    res.status(500).json({ error: message });
   }
 });
 
